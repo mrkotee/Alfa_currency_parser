@@ -1,4 +1,7 @@
+# python 3.5
 from robobrowser import RoboBrowser
+import requests
+from datetime import datetime as dt
 from settings import base_path
 
 
@@ -42,6 +45,37 @@ class Currency_parser:
         return {"EUR": {"buy": float(euro[1].text.replace(',', '.')), "sell": float(euro[2].text.replace(',', '.')), },
                 "USD": {"buy": float(dollar[1].text.replace(',', '.')), "sell": float(dollar[2].text.replace(',', '.')), },
                 }
+
+
+def parse_currency_alfa_json():
+    url = "https://alfabank.ru/ext-json/0.2/exchange/cash?offset=0&limit=2&mode=rest"
+
+    r = requests.get(url)
+    res = {}
+    for c, v in r.json().items():
+        if c == "usd" or c == "eur":
+            res[c.upper()] = {}
+            last_res = ()
+            for s in v:
+                s_type = s['type']
+                s_date = dt.strptime(s['date'], "%Y-%m-%d %H:%M:%S")
+                s_value = s['value']
+                if last_res:
+                    if last_res[3] > s_date and last_res[:2] == (c, s_type):
+                        last_res = (c, s_type, s_value, s_date)
+                    else:
+                        res[c.upper()][s_type] = s_value
+                        last_res = (c, s_type, s_value, s_date)
+
+                else:
+                    last_res = (c, s_type, s_value, s_date)
+                    res[c.upper()][s_type] = s_value
+
+    return res
+    # return {"EUR": {"buy": float(euro[1].text.replace(',', '.')), "sell": float(euro[2].text.replace(',', '.')), },
+    #         "USD": {"buy": float(dollar[1].text.replace(',', '.')),
+    #                 "sell": float(dollar[2].text.replace(',', '.')), },
+    #         }
 
 
 def check_and_save_rates_to_base(rates_dict):
@@ -100,11 +134,26 @@ if __name__ == "__main__":
 
 
     parser = Currency_parser()
-    cur_rates = parser.parse_currency_alfabank()
-    print("alfa rates", cur_rates)
-    cur_rates = parser.parse_currency_bankiru()
-    print("banki rates", cur_rates)
+    try:
+        cur_rates = parser.parse_currency_alfabank()
+        print("alfa  rates", cur_rates)
+    except:
+        print("alfa browser is't work")
+
+    try:
+        cur_rates = parser.parse_currency_bankiru()
+        print("banki rates", cur_rates)
+    except:
+        print("banki browser is't work")
+
+    try:
+        cur_rates = parse_currency_alfa_json()
+    except:
+        print("alfa json is't work")
 
     check_and_save_rates_to_base(cur_rates)
+
+
+
 
 
