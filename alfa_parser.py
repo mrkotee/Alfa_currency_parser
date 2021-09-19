@@ -119,9 +119,11 @@ def check_and_save_rates_to_base(rates_dict):
 
 
 def parse_and_save_rates():
-    parser = Currency_parser()
-    cur_rates = parser.parse_currency_alfabank()
-
+    try:
+        parser = Currency_parser()
+        cur_rates = parser.parse_currency_alfabank()
+    except:
+        cur_rates = parse_currency_alfa_json()
     new_rates = check_and_save_rates_to_base(cur_rates)
 
     return new_rates
