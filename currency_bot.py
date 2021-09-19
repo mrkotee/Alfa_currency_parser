@@ -49,8 +49,13 @@ def check_user_in_base(chat_id):
 
 def check_user_in_base_dec(func):
     def decorator(*args, **kwargs):
+        # print(list(_arg + '\n' for _arg in args[0].__dict__.keys()))
+        # print(args[0].from_user.id)
         message = args[0]
-        chat_id = message.chat.id
+        try:
+            chat_id = message.chat.id
+        except:
+            chat_id = message.from_user.id
         try:
             user_in_base = alfa_u_session.query(Users).filter(Users.chat_id==chat_id).first()
         except InvalidRequestError as e:
@@ -305,7 +310,7 @@ def purchased_list(message, user_in_base, page=1):
     # users_purchases = users_purchases.order_by(PurchasedCurrency.date).all()[::-1]
     users_purchases = users_not_selled_pur[::-1] # send only unselled prchsss
 
-    purchased_btns = []
+    purchased_btns = {}
     if len(users_purchases) > 0:
         msg_text = "You have {count} purchases\nNot selled: {not_selled_count}\n".format(
             count=len(users_purchases),
@@ -341,7 +346,7 @@ def purchased_list(message, user_in_base, page=1):
                 rub=in_rubs,
                 inqlt= rubs_inqlt,
             )
-            purchased_btns.append("edit №%d" % user_purchase.id_for_user)
+            purchased_btns[user_purchase.id_for_user] = "edit №%d" % user_purchase.id_for_user
 
         user_sums = {}
         for purchase in users_not_selled_pur:
@@ -377,25 +382,64 @@ def purchased_list(message, user_in_base, page=1):
         msg_text = "You have no one purchase yet"
 
     if purchased_btns:
-        purchased_btns.append("exit")
-        markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
-        markup.add(*purchased_btns)
+        purchased_btns['exit'] = "exit"
+        # markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
+        # markup.add(*purchased_btns)
+        markup = telebot.types.InlineKeyboardMarkup()
+        for btn_id, btn_text in purchased_btns.items():
+            markup.add(telebot.types.InlineKeyboardButton(text=btn_text, callback_data=btn_id))
         msg = bot.send_message(chat_id, msg_text, reply_markup=markup, parse_mode='Markdown')
-        bot.register_next_step_handler(msg, choose_purchase, user_in_base)
+        # bot.register_next_step_handler(msg, choose_purchase, user_in_base)
     else:
         bot.send_message(chat_id, msg_text)
 
 
-def choose_purchase(message, user_in_base):
-    chat_id = message.chat.id
-    if message.text == "exit":
-        bot.send_message(chat_id, "Ok", reply_markup=types.ReplyKeyboardRemove())
+# def choose_purchase(message, user_in_base):
+#     chat_id = message.chat.id
+#     if message.text == "exit":
+#         bot.send_message(chat_id, "Ok", reply_markup=types.ReplyKeyboardRemove())
 
+#     else:
+#         try:
+#             purchase_usr_id = int(message.text.split("№")[1])
+#         except IndexError:
+#             bot.send_message(chat_id, "Something wrong", reply_markup=types.ReplyKeyboardRemove())
+
+#         try:
+#             purchase = alfa_cur_session.query(PurchasedCurrency).\
+#                 filter(PurchasedCurrency.user_id == user_in_base.id).\
+#                 filter(PurchasedCurrency.id_for_user == purchase_usr_id).first()
+#         except InvalidRequestError as e:
+#             alfa_cur_session.rollback()
+#             purchase = alfa_cur_session.query(PurchasedCurrency).\
+#                 filter(PurchasedCurrency.user_id == user_in_base.id).\
+#                 filter(PurchasedCurrency.id_for_user == purchase_usr_id).first()
+
+#         msg_text = "№{id_for_user} {currency} {value}\nDate: {date}\nPurchased for {buy_rate}\nWaiting: {waiting}\n{selled}\n\nWant edit?".format(
+#                     id_for_user=purchase.id_for_user,
+#                     currency=alfa_cur_session.query(CurrencyTypes).get(purchase.currency_type).abbreviation,
+#                     value=purchase.currency_value,
+#                     date=purchase.date.date(),
+#                     buy_rate=purchase.currency_buy_rate,
+#                     waiting=purchase.waiting_for,
+#                     selled=("Selled" if purchase.selled else "Not selled")
+#                 )
+#         msg = send_edit_keyboard(chat_id, msg_text)
+#         bot.register_next_step_handler(msg, edit_purchase_param, purchase)
+
+
+@bot.callback_query_handler(func=lambda call: True)
+@check_user_in_base_dec
+def choose_purchase(call, user_in_base):
+    if call.data == 'exit':
+        bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id)
+        bot.answer_callback_query(callback_query_id=call.id, text='Closed')
     else:
+        chat_id = call.message.chat.id
         try:
-            purchase_usr_id = int(message.text.split("№")[1])
+            purchase_usr_id = int(call.data)
         except IndexError:
-            bot.send_message(chat_id, "Something wrong", reply_markup=types.ReplyKeyboardRemove())
+            bot.answer_callback_query(callback_query_id=call.id, text='Something wrong')
 
         try:
             purchase = alfa_cur_session.query(PurchasedCurrency).\
@@ -418,6 +462,7 @@ def choose_purchase(message, user_in_base):
                 )
         msg = send_edit_keyboard(chat_id, msg_text)
         bot.register_next_step_handler(msg, edit_purchase_param, purchase)
+
 
 
 # @bot.message_handler(func=lambda message: True)
@@ -470,6 +515,8 @@ def choose_purchase(message, user_in_base):
 
 
 if __name__ == "__main__":
+
+    bot.remove_webhook()
     # Enable saving next step handlers to file "./.handlers-saves/step.save".
     # Delay=2 means that after any change in next step handlers (e.g. calling register_next_step_handler())
     # saving will hapen after delay 2 seconds.
@@ -479,4 +526,5 @@ if __name__ == "__main__":
     # WARNING It will work only if enable_save_next_step_handlers was called!
     bot.load_next_step_handlers()
 
+    print('start polling')
     bot.polling()
