@@ -48,30 +48,73 @@ class Currency_parser:
 
 
 def parse_currency_alfa_json():
-    url = "https://alfabank.ru/ext-json/0.2/exchange/cash?offset=0&limit=2&mode=rest"
+    def parse_old_json():
+        url = "https://alfabank.ru/ext-json/0.2/exchange/cash?offset=0&limit=2&mode=rest"
 
-    r = requests.get(url)
-    res = {}
-    for c, v in r.json().items():
-        if c == "usd" or c == "eur":
-            res[c.upper()] = {}
-            last_res = ()
-            for s in v:
-                s_type = s['type']
-                s_date = dt.strptime(s['date'], "%Y-%m-%d %H:%M:%S")
-                s_value = s['value']
-                if last_res:
-                    if last_res[3] > s_date and last_res[:2] == (c, s_type):
-                        last_res = (c, s_type, s_value, s_date)
+        r = requests.get(url)
+        res = {}
+        for c, v in r.json().items():
+            if c.lower() == "usd" or c.lower() == "eur":
+                res[c.upper()] = {}
+                last_res = ()
+                for s in v:
+                    s_type = s['type']
+                    s_date = dt.strptime(s['date'], "%Y-%m-%d %H:%M:%S")
+                    s_value = s['value']
+                    if last_res:
+                        if last_res[3] > s_date and last_res[:2] == (c, s_type):
+                            last_res = (c, s_type, s_value, s_date)
+                        else:
+                            res[c.upper()][s_type] = s_value
+                            res[c.upper()]['date'] = s_date
+                            last_res = (c, s_type, s_value, s_date)
+
                     else:
-                        res[c.upper()][s_type] = s_value
                         last_res = (c, s_type, s_value, s_date)
+                        res[c.upper()][s_type] = s_value
+                        res[c.upper()]['date'] = s_date
+        return res
+                    
+    def parse_api_json():
+        ## https://alfabank.ru/api/v1/scrooge/currencies/alfa-rates?currencyCode.in=USD,EUR,CHF,GBP&rateType.eq=makeCash&lastActualForDate.eq=true&clientType.eq=standardCC&date.lte=2021-09-28T10:25:18+03:00
+        url = "https://alfabank.ru/api/v1/scrooge/currencies/alfa-rates?\
+currencyCode.in=USD,EUR,CHF,GBP&rateType.eq=makeCash&lastActualForDate.\
+eq=true&clientType.eq=standardCC&date.lte={year}-{mounth}-{day}T{hour}:{minute}:18+03:00".format(
+            year=dt.now().year,
+            mounth=dt.now().strftime('%m'),
+            day=dt.now().strftime('%d'),
+            hour=dt.now().strftime('%H'),
+            minute=dt.now().strftime('%M'),
+            )
 
-                else:
-                    last_res = (c, s_type, s_value, s_date)
-                    res[c.upper()][s_type] = s_value
+        r = requests.get(url)
+        # print(r.json()["data"])  # [{'currencyCode': 'CHF', 'rateByClientType': [{'clientType': 'standardCC', 'ratesByType': [{'rateType': 'makeCash', 'ratesForPeriod': [], 'lastActualRate': {'sell': {'originalValue': 79.31}, 'buy': {'originalValue': 77.81}, 'date': '2021-09-28T18:09:00+03:00'}}]}]}, {'currencyCode': 'EUR', 'rateByClientType': [{'clientType': 'standardCC', 'ratesByType': [{'rateType': 'makeCash', 'ratesForPeriod': [], 'lastActualRate': {'sell': {'originalValue': 85.93}, 'buy': {'originalValue': 84.33}, 'date': '2021-09-28T18:09:00+03:00'}}]}]}, {'currencyCode': 'GBP', 'rateByClientType': [{'clientType': 'standardCC', 'ratesByType': [{'rateType': 'makeCash', 'ratesForPeriod': [], 'lastActualRate': {'sell': {'originalValue': 99.53}, 'buy': {'originalValue': 97.83}, 'date': '2021-09-28T18:09:00+03:00'}}]}]}, {'currencyCode': 'USD', 'rateByClientType': [{'clientType': 'standardCC', 'ratesByType': [{'rateType': 'makeCash', 'ratesForPeriod': [], 'lastActualRate': {'sell': {'originalValue': 73.68}, 'buy': {'originalValue': 72.18}, 'date': '2021-09-28T18:09:00+03:00'}}]}]}]
 
-    return res
+        res = {}
+        for c in r.json()["data"]:
+            if c['currencyCode'].lower() == "usd" or c['currencyCode'].lower() == "eur":
+                res[c['currencyCode'].upper()] = {}
+                act_rate = c['rateByClientType'][0]['ratesByType'][0]['lastActualRate']
+                # s_date = act_rate['date']
+                s_date = dt.strptime(act_rate['date'][:-6], "%Y-%m-%dT%H:%M:%S") # del timezone
+                # s_date = dt.fromisoformat(act_rate['date'])
+
+                res[c['currencyCode'].upper()]['buy'] = act_rate['buy']['originalValue']
+                res[c['currencyCode'].upper()]['sell'] = act_rate['sell']['originalValue']
+                res[c['currencyCode'].upper()]['date'] = s_date
+
+
+        return res
+
+
+    res_one = parse_old_json()
+    res_two = parse_api_json()
+
+    if res_two['USD']['date'] > res_one['USD']['date']:
+        return res_two
+    else:
+        return res_one
+
     # return {"EUR": {"buy": float(euro[1].text.replace(',', '.')), "sell": float(euro[2].text.replace(',', '.')), },
     #         "USD": {"buy": float(dollar[1].text.replace(',', '.')),
     #                 "sell": float(dollar[2].text.replace(',', '.')), },
@@ -140,18 +183,19 @@ if __name__ == "__main__":
         cur_rates = parser.parse_currency_alfabank()
         print("alfa  rates", cur_rates)
     except:
-        print("alfa browser is't work")
+        print("alfa browser isn't work")
 
     try:
         cur_rates = parser.parse_currency_bankiru()
         print("banki rates", cur_rates)
     except:
-        print("banki browser is't work")
+        print("banki browser isn't work")
 
     try:
         cur_rates = parse_currency_alfa_json()
+        print('alfa json rates', cur_rates)
     except:
-        print("alfa json is't work")
+        print("alfa json isn't work")
 
     check_and_save_rates_to_base(cur_rates)
 
