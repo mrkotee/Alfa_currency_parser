@@ -80,9 +80,9 @@ if new_rates:
 
             user_summ = 0.0
             for purchase in user_purchased:
-                # print(purchase.waiting_for, rate.to_buy)
-                # if rate.to_buy >= purchase.waiting_for:
-                #     can_be_selled.append(purchase)
+                print(purchase.waiting_for, rate.to_buy)
+                if rate.to_buy >= purchase.waiting_for:
+                    can_be_selled.append(purchase)
                 user_summ += float(purchase.currency_value)
             user_sums.append(
                 "{currency} {value} == {rubles}".format(
@@ -91,15 +91,17 @@ if new_rates:
                 rubles=round(user_summ*rate.to_buy))
             )
 
-        # if can_be_selled:
-        #     user_msg_text = msg_text + "\n\nYou can sell:\n"
-        #     user_msg_text += "\n".join(["{currency} {value} purchased on {date}".format(
-        #         currency=next((c_type.abbreviation for c_type in cur_types if c_type.id == purchase.currency_type)),
-        #         value=purchase.currency_value,
-        #         date=purchase.date.date(),
-        #     ) for purchase in can_be_selled])
+        user_msg_text = msg_text + "\n"
+        if can_be_selled:
+            user_msg_text += "\nYou can sell:\n"
+            user_msg_text += "\n".join(["{currency} {value} purchased on {date}".format(
+                currency=next((c_type.abbreviation for c_type in cur_types if c_type.id == purchase.currency_type)),
+                value=purchase.currency_value,
+                date=purchase.date.date(),
+            ) for purchase in can_be_selled])
         if user_sums:
-            user_msg_text = msg_text + "\n\nYou have:\n"
+            # user_msg_text = msg_text + "\n\nYou have:\n"
+            user_msg_text += "\nYou have:\n"
             user_msg_text += "\n".join([sums_text for sums_text in user_sums])
 
         else:
