@@ -36,7 +36,7 @@ class CurrencyRates(Base):
         self.currency_type = currency_type_id
         self.to_buy = currency_to_buy
         self.to_sell = currency_to_sell
-        self.date = dt.now().date()
+        self.date = dt.now()
 
 
 class PurchasedCurrency(Base):

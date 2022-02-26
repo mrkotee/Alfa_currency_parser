@@ -107,13 +107,14 @@ eq=true&clientType.eq=standardCC&date.lte={year}-{mounth}-{day}T{hour}:{minute}:
         return res
 
 
-    res_one = parse_old_json()
+    # res_one = parse_old_json()
     res_two = parse_api_json()
-
-    if res_two['USD']['date'] > res_one['USD']['date']:
-        return res_two
-    else:
-        return res_one
+    
+    return res_two
+    # if res_two['USD']['date'] > res_one['USD']['date']:
+    #     return res_two
+    # else:
+    #     return res_one
 
     # return {"EUR": {"buy": float(euro[1].text.replace(',', '.')), "sell": float(euro[2].text.replace(',', '.')), },
     #         "USD": {"buy": float(dollar[1].text.replace(',', '.')),

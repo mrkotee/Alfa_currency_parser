@@ -135,9 +135,11 @@ def send_last_rate(message):
             CurrencyRates.id)[-1]
         new_rates.append(last_cur_rate)
 
-    msg_text = "Last rates:\nCurrency  buy  sell\n"
+    msg_text = "Last rates:\n"
+    msg_text += "Time".center(16)
+    msg_text += " Currency  buy  sell\n"
     msg_text += "\n".join(["{date} {currency}  {buy}  {sell}".format(
-        date=rate.date,
+        date=rate.date.strftime("%Y/%m/%d %H:%M"),
         currency=next(c_type.abbreviation for c_type in cur_types if c_type.id == rate.currency_type),
         buy=rate.to_buy,
         sell=rate.to_sell,

@@ -13,7 +13,7 @@ from alfa_parser import parse_and_save_rates
 LOG_FILENAME = 'alfaparser.log'
 # logging.getLogger("requests.packages.urllib3")
 # logging.propagate = True
-logging.basicConfig(filename=LOG_FILENAME, level=logging.DEBUG,
+logging.basicConfig(filename=LOG_FILENAME, level=logging.INFO,
                     format=u'%(levelname)-8s [%(asctime)s]  %(message)s')
 logTime = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
 
@@ -80,13 +80,13 @@ if new_rates:
 
             user_summ = 0.0
             for purchase in user_purchased:
-                print(purchase.waiting_for, rate.to_buy)
+                # print(purchase.waiting_for, rate.to_buy)
                 if rate.to_buy >= purchase.waiting_for:
                     can_be_selled.append(purchase)
                 user_summ += float(purchase.currency_value)
             user_sums.append(
                 "{currency} {value} == {rubles}".format(
-                currency=rate.currency_type,
+                currency=next((c_type.abbreviation for c_type in cur_types if c_type.id == rate.currency_type)),
                 value=round(user_summ, 2),
                 rubles=round(user_summ*rate.to_buy))
             )
