@@ -187,8 +187,8 @@ def set_currency(message, new_purchase, cur_types):
                 new_purchase.currency_type = c_type.id
                 if not new_purchase.currency_buy_rate:
                     last_rate = \
-                    alfa_cur_session.query(CurrencyRates).filter(CurrencyRates.currency_type == c_type.id).order_by(
-                        CurrencyRates.id)[-1]
+                        alfa_cur_session.query(CurrencyRates).filter(CurrencyRates.currency_type == c_type.id).order_by(
+                            CurrencyRates.id)[-1]
                     new_purchase.currency_buy_rate = last_rate.to_sell
                 alfa_cur_session.commit()
 
@@ -196,7 +196,7 @@ def set_currency(message, new_purchase, cur_types):
                 bot.register_next_step_handler(msg, set_value, new_purchase)
 
     else:
-        bot.send_message(chat_id, "error...")
+        bot.send_message(chat_id, "Wrong currency")
 
 
 def set_value(message, new_purchase):
@@ -209,7 +209,8 @@ def set_value(message, new_purchase):
         msg = send_edit_keyboard(chat_id)
         bot.register_next_step_handler(msg, edit_purchase_param, new_purchase)
     except Exception as e:
-        bot.send_message(chat_id, "%s!" % str(e))
+        bot.send_message(admin_user_id, "%s!" % str(e))
+        bot.send_message(chat_id, "Error")
 
 
 def edit_purchase_param(message, new_purchase):
@@ -346,20 +347,11 @@ def purchased_list(message, user_in_base, page=1):
 
         user_sums = {}
         for purchase in users_not_selled_pur:
-            # print(purchase.waiting_for, rate.to_buy)
-            # if rate.to_buy >= purchase.waiting_for:
-            #     can_be_selled.append(purchase)
             try:
                 user_sums[purchase.currency_type] += float(purchase.currency_value)
             except KeyError:
                 user_sums[purchase.currency_type] = float(purchase.currency_value)
 
-        # user_sums.append(
-        #     "{currency} {value} == {rubles}".format(
-        #     currency=next((c_type.abbreviation for c_type in cur_types if c_type.id == purchase.currency_type)),
-        #     value=user_summ,
-        #     rubles=(user_summ*rate.to_buy))
-        # )
         msg_text = msg_text + "\nYou have:\n"
 
         for cur_type, cur_summ in user_sums.items():
@@ -372,7 +364,6 @@ def purchased_list(message, user_in_base, page=1):
                 value=round(cur_summ, 1),
                 rubles=round(cur_summ * last_cur_rate.to_buy)
             )
-
 
     else:
         msg_text = "You have no one purchase yet"
@@ -388,40 +379,6 @@ def purchased_list(message, user_in_base, page=1):
         # bot.register_next_step_handler(msg, choose_purchase, user_in_base)
     else:
         bot.send_message(chat_id, msg_text)
-
-
-# def choose_purchase(message, user_in_base):
-#     chat_id = message.chat.id
-#     if message.text == "exit":
-#         bot.send_message(chat_id, "Ok", reply_markup=types.ReplyKeyboardRemove())
-
-#     else:
-#         try:
-#             purchase_usr_id = int(message.text.split("№")[1])
-#         except IndexError:
-#             bot.send_message(chat_id, "Something wrong", reply_markup=types.ReplyKeyboardRemove())
-
-#         try:
-#             purchase = alfa_cur_session.query(PurchasedCurrency).\
-#                 filter(PurchasedCurrency.user_id == user_in_base.id).\
-#                 filter(PurchasedCurrency.id_for_user == purchase_usr_id).first()
-#         except InvalidRequestError as e:
-#             alfa_cur_session.rollback()
-#             purchase = alfa_cur_session.query(PurchasedCurrency).\
-#                 filter(PurchasedCurrency.user_id == user_in_base.id).\
-#                 filter(PurchasedCurrency.id_for_user == purchase_usr_id).first()
-
-#         msg_text = "№{id_for_user} {currency} {value}\nDate: {date}\nPurchased for {buy_rate}\nWaiting: {waiting}\n{selled}\n\nWant edit?".format(
-#                     id_for_user=purchase.id_for_user,
-#                     currency=alfa_cur_session.query(CurrencyTypes).get(purchase.currency_type).abbreviation,
-#                     value=purchase.currency_value,
-#                     date=purchase.date.date(),
-#                     buy_rate=purchase.currency_buy_rate,
-#                     waiting=purchase.waiting_for,
-#                     selled=("Selled" if purchase.selled else "Not selled")
-#                 )
-#         msg = send_edit_keyboard(chat_id, msg_text)
-#         bot.register_next_step_handler(msg, edit_purchase_param, purchase)
 
 
 @bot.callback_query_handler(func=lambda call: True)
@@ -441,67 +398,28 @@ def choose_purchase(call, user_in_base):
             purchase = alfa_cur_session.query(PurchasedCurrency). \
                 filter(PurchasedCurrency.user_id == user_in_base.id). \
                 filter(PurchasedCurrency.id_for_user == purchase_usr_id).first()
-        except InvalidRequestError as e:
+        except InvalidRequestError:
             alfa_cur_session.rollback()
             purchase = alfa_cur_session.query(PurchasedCurrency). \
                 filter(PurchasedCurrency.user_id == user_in_base.id). \
                 filter(PurchasedCurrency.id_for_user == purchase_usr_id).first()
 
-        msg_text = "№{id_for_user} {currency} {value}\nDate: {date}\nPurchased for {buy_rate}\nWaiting: {waiting}\n{selled}\n\nWant edit?".format(
-            id_for_user=purchase.id_for_user,
-            currency=alfa_cur_session.query(CurrencyTypes).get(purchase.currency_type).abbreviation,
-            value=purchase.currency_value,
-            date=purchase.date.date(),
-            buy_rate=purchase.currency_buy_rate,
-            waiting=purchase.waiting_for,
-            selled=("Selled" if purchase.selled else "Not selled")
-        )
+        msg_text = "№{id_for_user} {currency} {value}\n" \
+                   "Date: {date}\nPurchased for {buy_rate}\nWaiting: {waiting}\n{selled}\n\n" \
+                   "Want edit?".format(
+                                    id_for_user=purchase.id_for_user,
+                                    currency=alfa_cur_session.query(CurrencyTypes).get(
+                                        purchase.currency_type).abbreviation,
+                                    value=purchase.currency_value,
+                                    date=purchase.date.date(),
+                                    buy_rate=purchase.currency_buy_rate,
+                                    waiting=purchase.waiting_for,
+                                    selled=("Sold" if purchase.selled else "Not sold")
+                    )
         msg = send_edit_keyboard(chat_id, msg_text)
         bot.register_next_step_handler(msg, edit_purchase_param, purchase)
 
 
-# @bot.message_handler(func=lambda message: True)
-# def forward(message):
-#     id = 1930767
-
-#     msg = "from: [_{}_](tg://user?id={})\n{}".format(message.chat.username, message.chat.id, message.text)
-
-#     bot.send_message(id, msg, parse_mode='Markdown')
-
-
-# @bot.message_handler(commands=['usd'])
-# @check_user_in_base_dec
-# def set_currency(message, user_in_base):
-#     chat_id = message.chat.id
-#
-#     purchase_id = user_in_base.edit_purchase_id
-#     if purchase_id:
-#         purchase = alfa_cur_session.query(PurchasedCurrency).get(purchase_id)
-#         cur_types = alfa_cur_session.query(CurrencyTypes).all()
-#         for c_type in cur_types:
-#             if c_type.abbreviation.lower() == 'usd':
-#                 cur_type_id = c_type.id
-
-
-# @bot.message_handler(func=lambda message: True, content_types=['text'])
-# @check_user_in_base_dec
-# def text_message(message, user_in_base):
-#     chat_id = message.chat.id
-#     username = message.chat.username
-#
-#     if user_in_base.wait_cur_type and message.text is string:
-#
-#         alfa_cur_session.add(PurchasedCurrency(currency_type_id, currency_value=0, date=dt.now(), user_id)
-#         alfa_cur_session.commit()
-#     if user_in_base.wait_cur_value and message is float:
-#         buyed_cur = alfa_cur_session.query(PurchasedCurrency).filter(PurchasedCurrency.user_id == user_id).filter(PurchasedCurrency.value == 0).first()
-#         buyed_cur.value = float(message.text)
-#         alfa_cur_session.commit()
-#
-#
-#
-#
-#
 # @bot(command=["buyed_list"])
 # def buyed_list(message):
 #     user_id = message.chat.id
