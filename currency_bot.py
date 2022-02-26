@@ -1,3 +1,4 @@
+# python 3.5
 import telebot
 from telebot import types
 import sys
@@ -6,16 +7,16 @@ import logging
 import time
 import re
 from datetime import datetime as dt
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.exc import IntegrityError, InvalidRequestError
+
 try:
     from settings import token, admin_user_id, base_path, userbase_path
-    from alc_base import CurrencyTypes, CurrencyRates, PurchasedCurrency, Users
+    from alchemy_base.alc_models import CurrencyTypes, CurrencyRates, PurchasedCurrency, Users
+    from alchemy_base.connector import create_session
 except ImportError:
     from alfa_bot.settings import token, admin_user_id, base_path, userbase_path
-    from alfa_bot.alc_base import CurrencyTypes, CurrencyRates, PurchasedCurrency, Users
-
+    from alfa_bot.alchemy_base.alc_models import CurrencyTypes, CurrencyRates, PurchasedCurrency, Users
+    from alfa_bot.alchemy_base.connector import create_session
 
 LOG_FILENAME = 'alfabot.log'
 # logging.getLogger("requests.packages.urllib3")
@@ -24,46 +25,36 @@ logging.basicConfig(filename=LOG_FILENAME, level=logging.DEBUG,
                     format=u'%(levelname)-8s [%(asctime)s]  %(message)s')
 logTime = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
 
-
 bot = telebot.TeleBot(token, threaded=False)
-
 telebot.logger = logging
 
-alfa_u_engine = create_engine('sqlite:///%s' % userbase_path, echo=False)
-alfa_u_Session = sessionmaker(bind=alfa_u_engine)
-alfa_u_session = scoped_session(alfa_u_Session)
-
-alfa_cur_engine = create_engine('sqlite:///%s' % base_path, echo=False)
-alfa_cur_Session = sessionmaker(bind=alfa_cur_engine)
-alfa_cur_session = scoped_session(alfa_cur_Session)
+alfa_u_session = create_session(userbase_path, scoped=True)
+alfa_cur_session = create_session(base_path, scoped=True)
 
 
 def check_user_in_base(chat_id):
     try:
-        user_in_base = alfa_u_session.query(Users).filter(Users.chat_id==chat_id).first()
+        user_in_base = alfa_u_session.query(Users).filter(Users.chat_id == chat_id).first()
     except InvalidRequestError as e:
         alfa_u_session.rollback()
-        user_in_base = alfa_u_session.query(Users).filter(Users.chat_id==chat_id).first()
+        user_in_base = alfa_u_session.query(Users).filter(Users.chat_id == chat_id).first()
     return user_in_base
 
 
 def check_user_in_base_dec(func):
     def decorator(*args, **kwargs):
-        # print(list(_arg + '\n' for _arg in args[0].__dict__.keys()))
-        # print(args[0].from_user.id)
         message = args[0]
         try:
             chat_id = message.chat.id
         except:
             chat_id = message.from_user.id
         try:
-            user_in_base = alfa_u_session.query(Users).filter(Users.chat_id==chat_id).first()
+            user_in_base = alfa_u_session.query(Users).filter(Users.chat_id == chat_id).first()
         except InvalidRequestError as e:
             alfa_u_session.rollback()
-            user_in_base = alfa_u_session.query(Users).filter(Users.chat_id==chat_id).first()
+            user_in_base = alfa_u_session.query(Users).filter(Users.chat_id == chat_id).first()
 
         if user_in_base:
-            # bot.send_message(chat_id, 'you in base')
             args = [*args]
             args.append(user_in_base)
             func(*args, **kwargs)
@@ -88,6 +79,7 @@ def send_welcome(message):
 
     elif not user_in_base.active:
         user_in_base.active = True
+        alfa_u_session.commit()
         msg = "С возвращением, *{}*!\nУведомление о курсах валют АльфаБанка включено!".format(username)
 
     else:
@@ -98,7 +90,7 @@ def send_welcome(message):
         /rate - действующие курсы
                 """
 
-    bot.send_message(chat_id, msg) # parse_mode='Markdown'
+    bot.send_message(chat_id, msg)  # parse_mode='Markdown'
 
 
 @bot.message_handler(commands=['stop'])
@@ -131,8 +123,8 @@ def send_last_rate(message):
     new_rates = []
     for cur_type in cur_types:
         last_cur_rate = \
-        alfa_cur_session.query(CurrencyRates).filter(CurrencyRates.currency_type == cur_type.id).order_by(
-            CurrencyRates.id)[-1]
+            alfa_cur_session.query(CurrencyRates).filter(CurrencyRates.currency_type == cur_type.id).order_by(
+                CurrencyRates.id)[-1]
         new_rates.append(last_cur_rate)
 
     msg_text = "Last rates:\n"
@@ -153,9 +145,11 @@ def send_last_rate(message):
 def add_purchased(message, user_in_base):
     chat_id = message.chat.id
 
-    users_purchases = alfa_cur_session.query(PurchasedCurrency).filter(PurchasedCurrency.user_id == user_in_base.id).all()
+    users_purchases = alfa_cur_session.query(PurchasedCurrency).filter(
+        PurchasedCurrency.user_id == user_in_base.id).all()
 
-    new_purchase = PurchasedCurrency(currency_type_id=1, user_id=user_in_base.id, id_for_user=len(users_purchases)+1, date=dt.now().date())
+    new_purchase = PurchasedCurrency(currency_type_id=1, user_id=user_in_base.id, id_for_user=len(users_purchases) + 1,
+                                     date=dt.now().date())
     alfa_cur_session.add(new_purchase)
     alfa_cur_session.commit()
 
@@ -192,7 +186,8 @@ def set_currency(message, new_purchase, cur_types):
             if c_type.abbreviation == currency:
                 new_purchase.currency_type = c_type.id
                 if not new_purchase.currency_buy_rate:
-                    last_rate = alfa_cur_session.query(CurrencyRates).filter(CurrencyRates.currency_type == c_type.id).order_by(
+                    last_rate = \
+                    alfa_cur_session.query(CurrencyRates).filter(CurrencyRates.currency_type == c_type.id).order_by(
                         CurrencyRates.id)[-1]
                     new_purchase.currency_buy_rate = last_rate.to_sell
                 alfa_cur_session.commit()
@@ -310,7 +305,7 @@ def purchased_list(message, user_in_base, page=1):
     users_purchases = alfa_cur_session.query(PurchasedCurrency).filter(PurchasedCurrency.user_id == user_in_base.id)
     users_not_selled_pur = users_purchases.filter(PurchasedCurrency.selled == False).all()
     # users_purchases = users_purchases.order_by(PurchasedCurrency.date).all()[::-1]
-    users_purchases = users_not_selled_pur[::-1] # send only unselled prchsss
+    users_purchases = users_not_selled_pur[::-1]  # send only unselled prchsss
 
     purchased_btns = {}
     if len(users_purchases) > 0:
@@ -335,7 +330,6 @@ def purchased_list(message, user_in_base, page=1):
             last_rates[cur_type.id] = last_cur_rate.to_buy
 
         for user_purchase in users_purchases[:10]:
-
             in_rubs = round(user_purchase.currency_value * last_rates[user_purchase.currency_type])
             rubs_inqlt = round(in_rubs - user_purchase.currency_value * user_purchase.currency_buy_rate)
             rubs_inqlt = ("+" + str(rubs_inqlt) if rubs_inqlt > 0 else rubs_inqlt)
@@ -346,7 +340,7 @@ def purchased_list(message, user_in_base, page=1):
                 date=user_purchase.date.date(),
                 buy_rate=user_purchase.currency_buy_rate,
                 rub=in_rubs,
-                inqlt= rubs_inqlt,
+                inqlt=rubs_inqlt,
             )
             purchased_btns[user_purchase.id_for_user] = "edit №%d" % user_purchase.id_for_user
 
@@ -370,13 +364,13 @@ def purchased_list(message, user_in_base, page=1):
 
         for cur_type, cur_summ in user_sums.items():
             last_cur_rate = \
-            alfa_cur_session.query(CurrencyRates).filter(CurrencyRates.currency_type == cur_type).order_by(
-                CurrencyRates.id)[-1]
+                alfa_cur_session.query(CurrencyRates).filter(CurrencyRates.currency_type == cur_type).order_by(
+                    CurrencyRates.id)[-1]
 
             msg_text = msg_text + "{currency} {value} == RUB {rubles}\n".format(
-            currency=alfa_cur_session.query(CurrencyTypes).get(cur_type).abbreviation,
-            value=round(cur_summ, 1),
-            rubles=round(cur_summ*last_cur_rate.to_buy)
+                currency=alfa_cur_session.query(CurrencyTypes).get(cur_type).abbreviation,
+                value=round(cur_summ, 1),
+                rubles=round(cur_summ * last_cur_rate.to_buy)
             )
 
 
@@ -444,27 +438,26 @@ def choose_purchase(call, user_in_base):
             bot.answer_callback_query(callback_query_id=call.id, text='Something wrong')
 
         try:
-            purchase = alfa_cur_session.query(PurchasedCurrency).\
-                filter(PurchasedCurrency.user_id == user_in_base.id).\
+            purchase = alfa_cur_session.query(PurchasedCurrency). \
+                filter(PurchasedCurrency.user_id == user_in_base.id). \
                 filter(PurchasedCurrency.id_for_user == purchase_usr_id).first()
         except InvalidRequestError as e:
             alfa_cur_session.rollback()
-            purchase = alfa_cur_session.query(PurchasedCurrency).\
-                filter(PurchasedCurrency.user_id == user_in_base.id).\
+            purchase = alfa_cur_session.query(PurchasedCurrency). \
+                filter(PurchasedCurrency.user_id == user_in_base.id). \
                 filter(PurchasedCurrency.id_for_user == purchase_usr_id).first()
 
         msg_text = "№{id_for_user} {currency} {value}\nDate: {date}\nPurchased for {buy_rate}\nWaiting: {waiting}\n{selled}\n\nWant edit?".format(
-                    id_for_user=purchase.id_for_user,
-                    currency=alfa_cur_session.query(CurrencyTypes).get(purchase.currency_type).abbreviation,
-                    value=purchase.currency_value,
-                    date=purchase.date.date(),
-                    buy_rate=purchase.currency_buy_rate,
-                    waiting=purchase.waiting_for,
-                    selled=("Selled" if purchase.selled else "Not selled")
-                )
+            id_for_user=purchase.id_for_user,
+            currency=alfa_cur_session.query(CurrencyTypes).get(purchase.currency_type).abbreviation,
+            value=purchase.currency_value,
+            date=purchase.date.date(),
+            buy_rate=purchase.currency_buy_rate,
+            waiting=purchase.waiting_for,
+            selled=("Selled" if purchase.selled else "Not selled")
+        )
         msg = send_edit_keyboard(chat_id, msg_text)
         bot.register_next_step_handler(msg, edit_purchase_param, purchase)
-
 
 
 # @bot.message_handler(func=lambda message: True)
@@ -517,7 +510,6 @@ def choose_purchase(call, user_in_base):
 
 
 if __name__ == "__main__":
-
     bot.remove_webhook()
     # Enable saving next step handlers to file "./.handlers-saves/step.save".
     # Delay=2 means that after any change in next step handlers (e.g. calling register_next_step_handler())
