@@ -31,7 +31,7 @@ def parse_currency_alfa_json():
         if c['currencyCode'].lower() == "usd" or c['currencyCode'].lower() == "eur":
             res[c['currencyCode'].upper()] = {}
             act_rate = c['rateByClientType'][0]['ratesByType'][0]['lastActualRate']
-            s_date = dt.strptime(act_rate['date'], "%Y-%m-%dT%H:%M:%S%z")  # del timezone
+            s_date = dt.strptime(act_rate['date'][:act_rate['date'].find("+")], "%Y-%m-%dT%H:%M:%S")  # del timezone
 
             res[c['currencyCode'].upper()]['buy'] = act_rate['buy']['originalValue']
             res[c['currencyCode'].upper()]['sell'] = act_rate['sell']['originalValue']
