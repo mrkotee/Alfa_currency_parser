@@ -20,8 +20,8 @@ def parse_currency_alfa_json():
         hour=date_now.strftime('%H'),
         minute=date_now.strftime('%M'),
         )
-
-    response = requests.get(url)
+    headers = {"user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36"}
+    response = requests.get(url, headers=headers)
 
     res = {}
     for c in response.json()["data"]:
@@ -84,11 +84,11 @@ def parse_and_save_rates():
 
 
 if __name__ == "__main__":
-    try:
-        cur_rates = parse_currency_alfa_json()
-        print('alfa rates', cur_rates)
-    except Exception as e:
-        print("alfa parser isn't work")
-        print(e)
+    # try:
+    cur_rates = parse_currency_alfa_json()
+    print('alfa rates', cur_rates)
+    # except Exception as e:
+    #     print("alfa parser isn't work")
+    #     print(e)
     check_and_save_rates_to_base(cur_rates)
     print("rates saved in base")
