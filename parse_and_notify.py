@@ -106,3 +106,6 @@ def main():
     for user_id, msg_text in messages.items():
         logging.debug("send msg to {user_id}")
         bot.send_message(user_id, msg_text)
+
+
+main()
