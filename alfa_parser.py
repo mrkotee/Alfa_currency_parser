@@ -1,5 +1,8 @@
 # python 3.5
 import requests
+from requests.exceptions import ConnectionError
+from urllib3.exceptions import ProtocolError
+import time
 from datetime import datetime as dt
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -28,7 +31,7 @@ def parse_currency_alfa_json():
         if c['currencyCode'].lower() == "usd" or c['currencyCode'].lower() == "eur":
             res[c['currencyCode'].upper()] = {}
             act_rate = c['rateByClientType'][0]['ratesByType'][0]['lastActualRate']
-            s_date = dt.strptime(act_rate['date'][:-6], "%Y-%m-%dT%H:%M:%S")  # del timezone
+            s_date = dt.strptime(act_rate['date'], "%Y-%m-%dT%H:%M:%S%z")  # del timezone
 
             res[c['currencyCode'].upper()]['buy'] = act_rate['buy']['originalValue']
             res[c['currencyCode'].upper()]['sell'] = act_rate['sell']['originalValue']
@@ -77,18 +80,26 @@ def check_and_save_rates_to_base(rates_dict):
 
 
 def parse_and_save_rates():
-    currency_rates = parse_currency_alfa_json()
+    for _ in range(5):
+        try:
+            currency_rates = parse_currency_alfa_json()
+            break
+        except (ConnectionError, KeyError):
+            time.sleep(13)
+
     new_rates = check_and_save_rates_to_base(currency_rates)
 
     return new_rates
 
 
 if __name__ == "__main__":
-    # try:
-    cur_rates = parse_currency_alfa_json()
-    print('alfa rates', cur_rates)
-    # except Exception as e:
-    #     print("alfa parser isn't work")
-    #     print(e)
-    check_and_save_rates_to_base(cur_rates)
+    for _ in range(5):
+        try:
+            currency_rates = parse_currency_alfa_json()
+            break
+        except (ConnectionError, KeyError) as e:  # , ConnectionResetError, ProtocolError
+            print("expt", e)
+            time.sleep(13)
+    print('alfa rates', currency_rates)
+    check_and_save_rates_to_base(currency_rates)
     print("rates saved in base")
