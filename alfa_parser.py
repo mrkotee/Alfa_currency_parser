@@ -1,4 +1,6 @@
 # python 3.5
+import random
+
 import requests
 from requests.exceptions import ConnectionError
 from urllib3.exceptions import ProtocolError
@@ -13,18 +15,39 @@ from settings import base_path
 def parse_currency_alfa_json():
     """parse alfa api
     :return currencies dict"""
-    date_now = dt.now()
-    url = "https://alfabank.ru/api/v1/scrooge/currencies/alfa-rates?\
-    currencyCode.in=USD,EUR,CHF,GBP&rateType.eq=makeCash&lastActualForDate.\
-    eq=true&clientType.eq=standardCC&date.lte={year}-{mounth}-{day}T{hour}:{minute}:18+03:00".format(
-        year=date_now.year,
-        mounth=date_now.strftime('%m'),
-        day=date_now.strftime('%d'),
-        hour=date_now.strftime('%H'),
-        minute=date_now.strftime('%M'),
-        )
-    headers = {"user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36"}
-    response = requests.get(url, headers=headers)
+
+    def parse_with_pure_request():
+        date_now = dt.now()
+        url = "https://alfabank.ru/api/v1/scrooge/currencies/alfa-rates?\
+        currencyCode.in=USD,EUR,CHF,GBP&rateType.eq=makeCash&lastActualForDate.\
+        eq=true&clientType.eq=standardCC&date.lte={year}-{mounth}-{day}T{hour}:{minute}:18+03:00".format(
+            year=date_now.year,
+            mounth=date_now.strftime('%m'),
+            day=date_now.strftime('%d'),
+            hour=date_now.strftime('%H'),
+            minute=date_now.strftime('%M'),
+            )
+        url = "https://alfabank.ru/api/v1/scrooge/currencies/alfa-rates"
+        headers = {
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.4844.74 Safari/537.36"}
+        response = requests.get(url, headers=headers)
+
+
+        return response
+
+    def parse_with_session():
+        headers = {
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.4844.74 Safari/537.36"}
+
+        session = requests.session()
+        session.headers = headers
+        response = session.get("https://alfabank.ru")
+        time.sleep(random.randint(3, 10))
+        response = session.get("https://alfabank.ru/currency/")
+        response = session.get("https://alfabank.ru/api/v1/scrooge/currencies/alfa-rates")
+        return response
+
+    response = parse_with_session()
 
     res = {}
     for c in response.json()["data"]:
@@ -36,7 +59,6 @@ def parse_currency_alfa_json():
             res[c['currencyCode'].upper()]['buy'] = act_rate['buy']['originalValue']
             res[c['currencyCode'].upper()]['sell'] = act_rate['sell']['originalValue']
             res[c['currencyCode'].upper()]['date'] = s_date
-
     return res
 
 
