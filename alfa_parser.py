@@ -44,7 +44,12 @@ def parse_currency_alfa_json():
         response = session.get("https://alfabank.ru")
         time.sleep(random.randint(3, 10))
         response = session.get("https://alfabank.ru/currency/")
-        response = session.get("https://alfabank.ru/api/v1/scrooge/currencies/alfa-rates")
+        # "https://alfabank.ru/api/v1/scrooge/currencies/alfa-rates"
+        rates = ",".join(["USD","EUR","CHF","GBP"])
+        date = dt.now().replace(microsecond=0).isoformat() + "+03:00"
+        url = "https://alfabank.ru/api/v1/scrooge/currencies/alfa-rates?currencyCode.in={codes}&rateType.eq=makeCash&" \
+              "lastActualForDate.eq=true&clientType.eq=standardCC&date.lte={date}".format(codes=rates, date=date)
+        response = session.get(url)
         return response
 
     response = parse_with_session()
